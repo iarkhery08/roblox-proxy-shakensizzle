@@ -39,6 +39,25 @@ app.post('/api/rank', async (req, res) => {
     }
 });
 
+app.get('/api/test/:groupId/:userId', async (req, res) => {
+    const { groupId, userId } = req.params;
+    
+    try {
+        const response = await axios.get(
+            `https://apis.roblox.com/cloud/v2/groups/${groupId}/users/${userId}`,
+            {
+                headers: { 'x-api-key': ROBLOX_API_KEY }
+            }
+        );
+        res.json({ success: true, data: response.data });
+    } catch (error) {
+        res.status(error.response?.status || 500).json({ 
+            error: error.response?.data || error.message,
+            status: error.response?.status
+        });
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Proxy server running on port ${PORT}`);
