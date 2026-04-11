@@ -39,19 +39,28 @@ app.post('/api/rank', async (req, res) => {
     }
 });
 
-app.get('/api/test/:groupId/:userId', async (req, res) => {
+app.get('/api/debug/:groupId/:userId', async (req, res) => {
     const { groupId, userId } = req.params;
     
+    console.log('Testing with:');
+    console.log('Group ID:', groupId);
+    console.log('User ID:', userId);
+    console.log('API Key:', ROBLOX_API_KEY ? 'Set' : 'NOT SET');
+    
     try {
+        // Get user's current role in group
         const response = await axios.get(
             `https://apis.roblox.com/cloud/v2/groups/${groupId}/users/${userId}`,
             {
                 headers: { 'x-api-key': ROBLOX_API_KEY }
             }
         );
+        
+        console.log('Success:', response.data);
         res.json({ success: true, data: response.data });
     } catch (error) {
-        res.status(error.response?.status || 500).json({ 
+        console.log('Error:', error.response?.data || error.message);
+        res.status(500).json({ 
             error: error.response?.data || error.message,
             status: error.response?.status
         });
