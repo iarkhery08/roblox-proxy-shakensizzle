@@ -2,14 +2,12 @@ const express = require('express');
 const axios = require('axios');
 const app = express();
 
-// Your Roblox Cloud API key (keep this secret!)
 const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY || 'YOUR_ROBLOX_CLOUD_API_KEY';
 const PROXY_SECRET = process.env.PROXY_SECRET || 'YOUR-SECRET-KEY';
 
 app.use(express.json());
 
 app.post('/api/rank', async (req, res) => {
-    // Verify secret
     const authHeader = req.headers['authorization'];
     if (authHeader !== PROXY_SECRET) {
         return res.status(401).json({ error: 'Unauthorized' });
@@ -18,10 +16,11 @@ app.post('/api/rank', async (req, res) => {
     const { userId, roleId, groupId } = req.body;
 
     try {
-        // Make the actual Cloud API request
         const response = await axios.patch(
-            `https://apis.roblox.com/cloud/v2/groups/groups/${groupId}/users/users/${userId}`,
-            { role: { id: roleId.toString() } },
+            `https://apis.roblox.com/cloud/v2/groups/${groupId}/users/${userId}`,
+            { 
+                role: { id: `groups/${groupId}/roles/${roleId}` } 
+            },
             {
                 headers: {
                     'x-api-key': ROBLOX_API_KEY,
@@ -48,7 +47,6 @@ app.get('/api/debug/:groupId/:userId', async (req, res) => {
     console.log('API Key:', ROBLOX_API_KEY ? 'Set' : 'NOT SET');
     
     try {
-        // Get user's current role in group
         const response = await axios.get(
             `https://apis.roblox.com/cloud/v2/groups/${groupId}/users/${userId}`,
             {
