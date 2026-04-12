@@ -20,7 +20,7 @@ app.post('/api/rank', async (req, res) => {
     try {
         // Make the actual Cloud API request
         const response = await axios.patch(
-            `https://apis.roblox.com/cloud/v2/groups/${groupId}/users/${userId}`,
+            `https://apis.roblox.com/cloud/v2/groups/groups/${groupId}/users/users/${userId}`,
             { role: { id: roleId.toString() } },
             {
                 headers: {
