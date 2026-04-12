@@ -1,63 +1,73 @@
-import { Router, type IRouter } from "express";
-const router: IRouter = Router();
-const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY ?? "";
-const PROXY_SECRET = process.env.PROXY_SECRET ?? "";
-// POST /api/roblox/rank
-router.post("/rank", async (req, res): Promise<void> => {
-  const authHeader = req.headers["authorization"];
-  if (!PROXY_SECRET || authHeader !== PROXY_SECRET) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  const { userId, roleId, groupId } = req.body;
-  if (!userId || !roleId || !groupId) {
-    res.status(400).json({ error: "Missing userId, roleId, or groupId" });
-    return;
-  }
-  try {
-    const membershipId = `groups/${groupId}/memberships/${userId}`;
-    const roleName = `groups/${groupId}/roles/${roleId}`;
-    const response = await fetch(
-      `https://apis.roblox.com/cloud/v2/${membershipId}`,
-      {
-        method: "PATCH",
-        headers: {
-          "x-api-key": ROBLOX_API_KEY,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ role: roleName }),  //  v2 format: role as resource name string
-      },
-    );
-    if (!response.ok) {
-      const data = await response.json().catch(() => null);
-      res.status(response.status).json({ error: data ?? "Roblox API error" });
-      return;
+const express = require('express');
+const axios = require('axios');
+const app = express();
+
+// Your Roblox Cloud API key (keep this secret!)
+const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY || 'YOUR_ROBLOX_CLOUD_API_KEY';
+const PROXY_SECRET = process.env.PROXY_SECRET || 'YOUR-SECRET-KEY';
+
+app.use(express.json());
+
+app.post('/api/rank', async (req, res) => {
+    // Verify secret
+    const authHeader = req.headers['authorization'];
+    if (authHeader !== PROXY_SECRET) {
+        return res.status(401).json({ error: 'Unauthorized' });
     }
-    res.status(200).json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-// GET /api/roblox/debug/:groupId/:userId
-router.get("/debug/:groupId/:userId", async (req, res): Promise<void> => {
-  const { groupId, userId } = req.params;
-  try {
-    //  Correct v2 endpoint: memberships with a filter, not /users/:userId
-    const response = await fetch(
-      `https://apis.roblox.com/cloud/v2/groups/${groupId}/memberships?filter=user%20%3D%3D%20'users%2F${userId}'`,
-      {
-        headers: { "x-api-key": ROBLOX_API_KEY },
-      },
-    );
-    if (!response.ok) {
-      const data = await response.json().catch(() => null);
-      res.status(500).json({ error: data ?? "Roblox API error", status: response.status });
-      return;
+
+    const { userId, roleId, groupId } = req.body;
+
+    try {
+        // Make the actual Cloud API request
+        const response = await axios.patch(
+            `https://apis.roblox.com/cloud/v2/groups/${groupId}/users/${userId}`,
+            { role: { id: roleId.toString() } },
+            {
+                headers: {
+                    'x-api-key': ROBLOX_API_KEY,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        res.status(200).json({ success: true });
+    } catch (error) {
+        console.error('Error:', error.response?.data || error.message);
+        res.status(error.response?.status || 500).json({ 
+            error: error.response?.data || 'Internal server error' 
+        });
     }
-    const data = await response.json();
-    res.json({ success: true, data });
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
 });
-export default router;
+
+app.get('/api/debug/:groupId/:userId', async (req, res) => {
+    const { groupId, userId } = req.params;
+    
+    console.log('Testing with:');
+    console.log('Group ID:', groupId);
+    console.log('User ID:', userId);
+    console.log('API Key:', ROBLOX_API_KEY ? 'Set' : 'NOT SET');
+    
+    try {
+        // Get user's current role in group
+        const response = await axios.get(
+            `https://apis.roblox.com/cloud/v2/groups/${groupId}/users/${userId}`,
+            {
+                headers: { 'x-api-key': ROBLOX_API_KEY }
+            }
+        );
+        
+        console.log('Success:', response.data);
+        res.json({ success: true, data: response.data });
+    } catch (error) {
+        console.log('Error:', error.response?.data || error.message);
+        res.status(500).json({ 
+            error: error.response?.data || error.message,
+            status: error.response?.status
+        });
+    }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Proxy server running on port ${PORT}`);
+});
