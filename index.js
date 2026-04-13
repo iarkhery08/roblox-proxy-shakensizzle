@@ -1,4 +1,7 @@
 const { Client, Collection, Events, EmbedBuilder, ActionRowBuilder ,ButtonBuilder, ButtonStyle, SlashCommandBuilder, GatewayIntentBits } = require('discord.js');
+const figlet = require('figlet'); 
+
+require('dotenv').config();
 
 const express = require('express');
 const axios = require('axios');
@@ -202,4 +205,19 @@ client.on('ready', () => {
    client.user.setActivity('commands', { type: 'LISTENING' })
 });
 
-client.login(DISCORD_TOKEN)
+client.on("interactionCreate", (interaction) => {
+    if(!interaction.isChatInputCommand()) return
+
+        const command = client.commands.get(interaction.commandName)
+
+        if(!command) {
+            interaction.reply({ content: "command does not exist - iArkhery" })
+        }
+
+        command.execute(interaction, client)
+})
+
+client.login(DISCORD_TOKEN).then(() => {
+    loadCommands(client);
+}); 
+
