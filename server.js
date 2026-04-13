@@ -7,7 +7,9 @@ const PROXY_SECRET = 'shakensizzlerankingservicesss2222025';
 
 app.use(express.json());
 
-// Helper: Get membership ID for a user
+// ====================== HELPER FUNCTIONS ======================
+
+// Get membership ID for a user
 async function getMembershipId(groupId, userId, apiKey) {
     try {
         const filter = `user=='users/${userId}'`;
@@ -28,7 +30,7 @@ async function getMembershipId(groupId, userId, apiKey) {
         // Extract membership ID from path: "groups/10472096/memberships/abc123xyz456"
         const fullPath = memberships[0].path || '';
         const parts = fullPath.split('/');
-        const membershipId = parts[parts.length - 1];   // Last part is the ID
+        const membershipId = parts[parts.length - 1];
 
         if (!membershipId || membershipId.length < 5) {
             return { success: false, error: 'Failed to extract membership ID from path' };
@@ -36,12 +38,11 @@ async function getMembershipId(groupId, userId, apiKey) {
 
         console.log(`Found membership ID: ${membershipId}`);
         return { success: true, membershipId };
-
     } catch (error) {
         const errData = error.response?.data || {};
         console.error('Get membership failed:', errData);
-        return { 
-            success: false, 
+        return {
+            success: false,
             error: errData.errors?.[0]?.message || error.message || 'Unknown error fetching membership'
         };
     }
@@ -66,10 +67,10 @@ async function rankUser(groupId, userId, roleId, apiKey) {
         const url = `https://apis.roblox.com/cloud/v2/groups/${groupId}/memberships/${membershipId}`;
 
         const body = {
-            role: `groups/${groupId}/roles/${roleId}`
+            role: `groups/${groupId}/roles/${roleId}`   // This must be the full path
         };
 
-        console.log(`Updating membership ${membershipId} to role ${roleId}`);
+        console.log(`Updating membership ${membershipId} to role ${roleId} (full path: ${body.role})`);
 
         const response = await axios.patch(url, body, {
             headers: {
@@ -80,7 +81,6 @@ async function rankUser(groupId, userId, roleId, apiKey) {
 
         console.log('Ranking update successful!');
         return { success: true, data: response.data };
-
     } catch (error) {
         const errData = error.response?.data || {};
         const status = error.response?.status;
@@ -88,17 +88,19 @@ async function rankUser(groupId, userId, roleId, apiKey) {
         console.error(`PATCH failed - Status: ${status}`, errData);
 
         let friendlyError = 'Failed to update rank';
-        
-        if (status === 403) friendlyError = 'Permission denied (API key or group permissions issue)';
-        else if (status === 400 || errData.errors?.[0]?.message?.includes('invalid')) {
+
+        if (status === 404 && errData.message?.includes('role')) {
+            friendlyError = 'Role not found - Make sure you are using the correct Role ID from /api/roles (not the rank number)';
+        } else if (status === 403) {
+            friendlyError = 'Permission denied (API key or group permissions issue)';
+        } else if (status === 400 || errData.message?.includes('invalid')) {
             friendlyError = 'Invalid request - Check: user in group? role exists? trying to set same rank?';
-        }
-        else if (errData.errors?.[0]?.message) {
-            friendlyError = errData.errors[0].message;
+        } else if (errData.message) {
+            friendlyError = errData.message;
         }
 
-        return { 
-            success: false, 
+        return {
+            success: false,
             error: friendlyError,
             details: errData,
             status: status
@@ -136,11 +138,10 @@ app.post('/api/rank', async (req, res) => {
     }
 });
 
-// Debug endpoint (very useful)
+// Debug endpoint
 app.get('/api/debug/:groupId/:userId', async (req, res) => {
     const { groupId, userId } = req.params;
     const result = await getMembershipId(groupId, userId, ROBLOX_API_KEY);
-
     res.json({
         groupId,
         userId,
@@ -149,7 +150,7 @@ app.get('/api/debug/:groupId/:userId', async (req, res) => {
     });
 });
 
-// List roles (helpful to confirm roleId exists)
+// List roles - VERY IMPORTANT for getting the correct roleId
 app.get('/api/roles/:groupId', async (req, res) => {
     const { groupId } = req.params;
     try {
@@ -159,15 +160,15 @@ app.get('/api/roles/:groupId', async (req, res) => {
         );
         res.json({ success: true, roles: response.data });
     } catch (error) {
-        res.status(500).json({ 
-            success: false, 
-            error: error.response?.data || error.message 
+        res.status(500).json({
+            success: false,
+            error: error.response?.data || error.message
         });
     }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`✅ Proxy server running on port ${PORT}`);
+    console.log(`Proxy server running on port ${PORT}`);
     console.log(`API Key configured: ${ROBLOX_API_KEY !== 'YOUR_ROBLOX_CLOUD_API_KEY' ? 'Yes' : 'No - SET YOUR API KEY!'}`);
 });
