@@ -21,6 +21,8 @@ const client = new Client({
     ]
 })
 
+const {loadCommands} = require('./Handlers/commandHandler')
+
 app.use(express.json());
 
 // ====================== HELPER FUNCTIONS ======================
