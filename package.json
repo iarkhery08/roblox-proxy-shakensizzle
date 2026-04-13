@@ -2,7 +2,7 @@
   "name": "roblox-proxy",
   "version": "1.0.0",
   "description": "Roblox Cloud API proxy server",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
