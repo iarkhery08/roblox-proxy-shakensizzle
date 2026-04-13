@@ -8,6 +8,14 @@ const DISCORD_TOKEN = process.env.DISCORD_TOKEN || 'DISCORD_TOKEN';
 const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY || 'YOUR_ROBLOX_CLOUD_API_KEY';
 const PROXY_SECRET = 'shakensizzlerankingservicesss2222025';
 
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+    ]
+})
+
 app.use(express.json());
 
 // ====================== HELPER FUNCTIONS ======================
