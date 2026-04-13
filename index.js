@@ -1,7 +1,10 @@
+const { Client, Collection, Events, EmbedBuilder, ActionRowBuilder ,ButtonBuilder, ButtonStyle, SlashCommandBuilder, GatewayIntentBits } = require('discord.js');
+
 const express = require('express');
 const axios = require('axios');
 const app = express();
 
+const DISCORD_TOKEN = process.env.DISCORD_TOKEN || 'DISCORD_TOKEN';
 const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY || 'YOUR_ROBLOX_CLOUD_API_KEY';
 const PROXY_SECRET = 'shakensizzlerankingservicesss2222025';
 
@@ -177,3 +180,15 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
+
+client.once("ready", () =>{
+  console.log(`Logged in as ${client.user.tag}!`);
+})
+
+client.on('ready', () => {
+   client.user.setStatus('idle') 
+
+   client.user.setActivity('commands', { type: 'LISTENING' })
+});
+
+client.login(DISCORD_TOKEN)
