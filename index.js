@@ -216,6 +216,8 @@ client.on("interactionCreate", (interaction) => {
         command.execute(interaction, client)
 })
 
+client.commands = new Collection();
+
 client.login(DISCORD_TOKEN).then(() => {
     loadCommands(client);
 }); 
