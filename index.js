@@ -1,5 +1,4 @@
 const { Client, Collection, Events, EmbedBuilder, ActionRowBuilder ,ButtonBuilder, ButtonStyle, SlashCommandBuilder, GatewayIntentBits } = require('discord.js');
-const figlet = require('figlet'); 
 
 require('dotenv').config();
 
