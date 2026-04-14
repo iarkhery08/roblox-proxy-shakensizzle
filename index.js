@@ -30,33 +30,52 @@ app.use(express.json());
 // Improved: Get real Role ID by rank + full debug output
 async function getRoleIdByRank(groupId, targetRank, apiKey) {
     try {
-        const url = `https://apis.roblox.com/cloud/v2/groups/${groupId}/roles?maxPageSize=100`;
-        console.log(`Fetching all roles for group ${groupId}...`);
+        let allRoles = [];
+        let pageToken = null;
+        const target = Number(targetRank);
 
-        const response = await axios.get(url, {
-            headers: { 'x-api-key': apiKey }
-        });
+        console.log(`Fetching ALL roles for group ${groupId} (with pagination)...`);
 
-        const rolesData = response.data;
-        console.log('Roles response structure:', Object.keys(rolesData)); // helps see if it's groupRoles or roles
+        do {
+            let url = `https://apis.roblox.com/cloud/v2/groups/${groupId}/roles?maxPageSize=100`;
+            if (pageToken) {
+                url += `&pageToken=${encodeURIComponent(pageToken)}`;
+            }
 
-        const roles = rolesData.groupRoles || rolesData.roles || [];
-        console.log(`Found ${roles.length} roles in total`);
+            console.log(`Fetching page... ${pageToken ? '(next page)' : '(first page)'}`);
 
-        if (roles.length === 0) {
-            console.log('WARNING: No roles returned at all. Possible permission issue.');
+            const response = await axios.get(url, {
+                headers: { 'x-api-key': apiKey }
+            });
+
+            const data = response.data;
+            const roles = data.groupRoles || data.roles || [];
+
+            console.log(`This page returned ${roles.length} roles`);
+
+            allRoles = allRoles.concat(roles);
+
+            // Update token for next iteration
+            pageToken = data.nextPageToken || null;
+
+        } while (pageToken);
+
+        console.log(`Total roles fetched across all pages: ${allRoles.length}`);
+
+        if (allRoles.length === 0) {
+            console.log('WARNING: No roles returned at all.');
             return { success: false, error: 'No roles returned from API' };
         }
 
-        // Print all available ranks for debugging
+        // Debug: Print all available ranks
         console.log('=== Available Ranks in Group ===');
-        roles.forEach(role => {
+        allRoles.forEach(role => {
             console.log(`Rank: ${role.rank} | ID: ${role.id || role.path} | Name: ${role.displayName || role.name}`);
         });
         console.log('=============================');
 
-        const target = Number(targetRank);
-        for (const role of roles) {
+        // Find the target rank
+        for (const role of allRoles) {
             if (role.rank === target) {
                 const realId = role.id || (role.path ? role.path.split('/').pop() : null);
                 console.log(`✅ MATCH FOUND! Rank ${target} → Real Role ID: ${realId} (${role.displayName || role.name})`);
@@ -66,6 +85,7 @@ async function getRoleIdByRank(groupId, targetRank, apiKey) {
 
         console.log(`❌ No role with rank ${target} found.`);
         return { success: false, error: `No role found with rank ${target}` };
+
     } catch (error) {
         const errData = error.response?.data || {};
         console.error('Get roles failed:', errData);
