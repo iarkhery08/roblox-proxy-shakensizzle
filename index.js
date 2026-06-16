@@ -1,17 +1,12 @@
-const { Client, Collection, Events, EmbedBuilder, ActionRowBuilder ,ButtonBuilder, ButtonStyle, SlashCommandBuilder, GatewayIntentBits } = require('discord.js');
-
+const { Client, Collection, Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, GatewayIntentBits } = require('discord.js');
 require('dotenv').config();
-
 const express = require('express');
 const axios = require('axios');
-const app = express();
 
+const app = express();
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN || 'DISCORD_TOKEN';
 const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY || 'YOUR_ROBLOX_CLOUD_API_KEY';
 const PROXY_SECRET = 'shakensizzlerankingservicesss2222025';
-
-const { REST } = require('@discordjs/rest');
-const { Routes } = require('discord-api-types/v9');
 
 const client = new Client({
     intents: [
@@ -19,80 +14,83 @@ const client = new Client({
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
     ]
-})
+});
 
-const {loadCommands} = require('./Handlers/commandHandler')
+const { loadCommands } = require('./Handlers/commandHandler');
 
 app.use(express.json());
 
 // ====================== HELPER FUNCTIONS ======================
 
-// Improved: Get real Role ID by rank + full debug output
+// Original: Get Role ID by Rank
 async function getRoleIdByRank(groupId, targetRank, apiKey) {
     try {
         let allRoles = [];
         let pageToken = null;
         const target = Number(targetRank);
-
         console.log(`Fetching ALL roles for group ${groupId} (with pagination)...`);
-
+        
         do {
             let url = `https://apis.roblox.com/cloud/v2/groups/${groupId}/roles?maxPageSize=100`;
             if (pageToken) {
                 url += `&pageToken=${encodeURIComponent(pageToken)}`;
             }
-
-            console.log(`Fetching page... ${pageToken ? '(next page)' : '(first page)'}`);
-
             const response = await axios.get(url, {
                 headers: { 'x-api-key': apiKey }
             });
-
             const data = response.data;
             const roles = data.groupRoles || data.roles || [];
-
-            console.log(`This page returned ${roles.length} roles`);
-
             allRoles = allRoles.concat(roles);
-
-            // Update token for next iteration
             pageToken = data.nextPageToken || null;
-
         } while (pageToken);
 
-        console.log(`Total roles fetched across all pages: ${allRoles.length}`);
+        console.log(`Total roles fetched: ${allRoles.length}`);
 
-        if (allRoles.length === 0) {
-            console.log('WARNING: No roles returned at all.');
-            return { success: false, error: 'No roles returned from API' };
-        }
-
-        // Debug: Print all available ranks
-        console.log('=== Available Ranks in Group ===');
-        allRoles.forEach(role => {
-            console.log(`Rank: ${role.rank} | ID: ${role.id || role.path} | Name: ${role.displayName || role.name}`);
-        });
-        console.log('=============================');
-
-        // Find the target rank
         for (const role of allRoles) {
             if (role.rank === target) {
                 const realId = role.id || (role.path ? role.path.split('/').pop() : null);
-                console.log(`✅ MATCH FOUND! Rank ${target} → Real Role ID: ${realId} (${role.displayName || role.name})`);
+                console.log(`✅ MATCH FOUND! Rank ${target} → Real Role ID: ${realId}`);
                 return { success: true, roleId: realId };
             }
         }
-
-        console.log(`❌ No role with rank ${target} found.`);
-        return { success: false, error: `No role found with rank ${target}` };
-
+        return { success: false, error: `No role with rank ${target} found.` };
     } catch (error) {
-        const errData = error.response?.data || {};
-        console.error('Get roles failed:', errData);
-        return {
-            success: false,
-            error: errData.message || 'Failed to fetch roles list'
-        };
+        console.error('Get roles failed:', error.response?.data || error.message);
+        return { success: false, error: 'Failed to fetch roles list' };
+    }
+}
+
+// Get Role ID by Role Name (Case-insensitive)
+async function getRoleIdByName(groupId, roleName, apiKey) {
+    try {
+        let allRoles = [];
+        let pageToken = null;
+
+        do {
+            let url = `https://apis.roblox.com/cloud/v2/groups/${groupId}/roles?maxPageSize=100`;
+            if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
+
+            const response = await axios.get(url, { headers: { 'x-api-key': apiKey } });
+            const roles = response.data.groupRoles || response.data.roles || [];
+            allRoles = allRoles.concat(roles);
+            pageToken = response.data.nextPageToken || null;
+        } while (pageToken);
+
+        const foundRole = allRoles.find(role => 
+            (role.displayName && role.displayName.toLowerCase() === roleName.toLowerCase()) ||
+            (role.name && role.name.toLowerCase() === roleName.toLowerCase())
+        );
+
+        if (foundRole) {
+            const realId = foundRole.id || (foundRole.path ? foundRole.path.split('/').pop() : null);
+            console.log(`✅ Role name match: "${roleName}" → ID: ${realId}`);
+            return { success: true, roleId: realId };
+        }
+
+        return { success: false, error: `Role "${roleName}" not found in the group.` };
+    } catch (error) {
+        console.error('Get role by name failed:', error.response?.data || error.message);
+        return { success: false, error: 'Failed to fetch roles from Roblox.' };
     }
 }
 
@@ -101,94 +99,85 @@ async function getMembershipId(groupId, userId, apiKey) {
     try {
         const filter = `user=='users/${userId}'`;
         const url = `https://apis.roblox.com/cloud/v2/groups/${groupId}/memberships?maxPageSize=10&filter=${encodeURIComponent(filter)}`;
-
-        console.log(`Fetching membership for user ${userId} in group ${groupId}`);
-
         const response = await axios.get(url, { headers: { 'x-api-key': apiKey } });
-
         const memberships = response.data.groupMemberships || [];
         if (memberships.length === 0) {
             return { success: false, error: 'User is not in the group' };
         }
-
-        const fullPath = memberships[0].path || '';
-        const membershipId = fullPath.split('/').pop();
-
+        const membershipId = memberships[0].path.split('/').pop();
         console.log(`Found membership ID: ${membershipId}`);
         return { success: true, membershipId };
     } catch (error) {
-        const errData = error.response?.data || {};
-        console.error('Get membership failed:', errData);
-        return { success: false, error: errData.message || error.message };
+        console.error('Get membership failed:', error.response?.data || error.message);
+        return { success: false, error: error.response?.data?.message || error.message };
     }
 }
 
-// Main ranking function
-async function rankUser(groupId, userId, roleInput, apiKey) {
+//Updated: Main ranking function (now supports role name)
+async function rankUser(groupId, userId, roleInput, apiKey, isName = false) {
     if (!groupId || !userId || !roleInput) {
         return { success: false, error: 'Missing parameters' };
     }
 
     let roleId = roleInput;
 
-    // Auto-convert small rank numbers (like 226) to real Role ID
-    if (Number(roleInput) < 1000000) {
+    // If role name was provided
+    if (isName) {
+        console.log(`Role name "${roleInput}" detected - looking up real Role ID...`);
+        const roleResult = await getRoleIdByName(groupId, roleInput, apiKey);
+        if (!roleResult.success) return roleResult;
+        roleId = roleResult.roleId;
+    } 
+    // Legacy support for rank numbers
+    else if (Number(roleInput) < 1000000) {
         console.log(`Rank number ${roleInput} detected - looking up real Role ID...`);
         const roleResult = await getRoleIdByRank(groupId, roleInput, apiKey);
-        if (!roleResult.success) {
-            return roleResult;
-        }
+        if (!roleResult.success) return roleResult;
         roleId = roleResult.roleId;
     }
 
     // Get membership
     const memResult = await getMembershipId(groupId, userId, apiKey);
     if (!memResult.success) return memResult;
-
     const membershipId = memResult.membershipId;
 
     // Perform the PATCH
     try {
         const url = `https://apis.roblox.com/cloud/v2/groups/${groupId}/memberships/${membershipId}`;
         const body = { role: `groups/${groupId}/roles/${roleId}` };
-
         console.log(`Updating to role ID: ${roleId}`);
-
         const response = await axios.patch(url, body, {
             headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json' }
         });
-
         console.log('Ranking successful!');
         return { success: true };
     } catch (error) {
         const errData = error.response?.data || {};
         const status = error.response?.status;
         console.error(`PATCH failed - Status ${status}:`, errData);
-
         let msg = 'Failed to update rank';
         if (status === 404) msg = 'Role not found (or invalid role ID)';
         else if (status === 403) msg = 'Permission denied';
         else if (status === 400) msg = 'Invalid request';
-
         return { success: false, error: msg, details: errData, status };
     }
 }
 
 // ====================== ROUTES ======================
 
+// ✅ Updated Route (now accepts roleName)
 app.post('/api/rank', async (req, res) => {
     const authHeader = req.headers['authorization'];
     if (authHeader !== PROXY_SECRET) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { userId, roleId, groupId } = req.body;
-
+    const { userId, roleId, roleName, groupId } = req.body;
     console.log('\n=== NEW RANKING REQUEST ===');
-    console.log('Group:', groupId, 'User:', userId, 'Rank/Role:', roleId);
+    console.log('Group:', groupId, 'User:', userId, 'Role:', roleName || roleId);
 
-    const result = await rankUser(groupId, userId, roleId, ROBLOX_API_KEY);
-
+    const result = await rankUser(groupId, userId, roleName || roleId, ROBLOX_API_KEY, !!roleName);
+    
     if (result.success) {
         res.json({ success: true, message: 'User ranked successfully' });
     } else {
@@ -200,9 +189,9 @@ app.post('/api/rank', async (req, res) => {
     }
 });
 
-// Useful debug routes
+// Debug routes (unchanged)
 app.get('/api/roles/:groupId', async (req, res) => {
-    const result = await getRoleIdByRank(req.params.groupId, 0, ROBLOX_API_KEY); // dummy rank to trigger full list
+    const result = await getRoleIdByRank(req.params.groupId, 0, ROBLOX_API_KEY);
     res.json({ success: true, roles: 'Check server console for full list' });
 });
 
@@ -216,31 +205,28 @@ app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
 
-client.once("ready", () =>{
-  console.log(`Logged in as ${client.user.tag}!`);
-})
+// ====================== DISCORD BOT ======================
+
+client.once("ready", () => {
+    console.log(`Logged in as ${client.user.tag}!`);
+});
 
 client.on('ready', () => {
-   client.user.setStatus('idle') 
-
-   client.user.setActivity('commands', { type: 'LISTENING' })
+    client.user.setStatus('idle');
+    client.user.setActivity('commands', { type: 'LISTENING' });
 });
 
 client.on("interactionCreate", (interaction) => {
-    if(!interaction.isChatInputCommand()) return
-
-        const command = client.commands.get(interaction.commandName)
-
-        if(!command) {
-            interaction.reply({ content: "command does not exist - iArkhery" })
-        }
-
-        command.execute(interaction, client)
-})
+    if (!interaction.isChatInputCommand()) return;
+    const command = client.commands.get(interaction.commandName);
+    if (!command) {
+        return interaction.reply({ content: "command does not exist - iArkhery" });
+    }
+    command.execute(interaction, client);
+});
 
 client.commands = new Collection();
 
 client.login(DISCORD_TOKEN).then(() => {
     loadCommands(client);
-}); 
-
+});
