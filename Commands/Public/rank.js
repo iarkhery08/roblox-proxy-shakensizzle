@@ -111,7 +111,7 @@ module.exports = {
                             .addFields(
                                 { name: 'Player', value: `[${username}](https://www.roblox.com/users/${userId})`, inline: true },
                                 { name: 'User ID', value: userId.toString(), inline: true },
-                                { name: 'Role', value: roleNameInput, inline: true }
+                                { name: 'Rank', value: roleNameInput, inline: true }
                             )
                             .setThumbnail(avatarUrl)
                             .setTimestamp();
@@ -126,7 +126,7 @@ module.exports = {
                                 .addFields(
                                     { name: 'Player', value: `[${username}](https://www.roblox.com/users/${userId})`, inline: true },
                                     { name: 'User ID', value: userId.toString(), inline: true },
-                                    { name: 'Role Name', value: roleNameInput, inline: true },
+                                    { name: 'Rank Name', value: roleNameInput, inline: true },
                                     { name: 'Ranked by', value: `${interaction.user.tag} (${interaction.user.id})`, inline: true },
                                 )
                                 .setThumbnail(avatarUrl)
