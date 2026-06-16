@@ -28,8 +28,9 @@ module.exports = {
 
         const playerInput = interaction.options.getString('player').trim();
         const roleNameInput = interaction.options.getString('rank').trim();
+        
+        const proxyUrl = process.env.PROXY_URL || "http://localhost:3000/api/rank";
         const groupId = process.env.GROUP_ID || 'GROUP_ID';
-        const proxyUrl = "http://localhost:3000/api/rank";
 
         try {
             // Resolve Roblox User
@@ -37,24 +38,21 @@ module.exports = {
             let username = playerInput;
 
             if (isNaN(playerInput)) {
-                // FIXED: Use POST request as required by Roblox
                 const resolveRes = await axios.post(`https://users.roblox.com/v1/usernames/users`, {
                     usernames: [playerInput],
                     excludeBannedUsers: false
                 });
-
                 if (!resolveRes.data.data || resolveRes.data.data.length === 0) {
                     return interaction.editReply("Could not find that ROBLOX user.");
                 }
                 userId = resolveRes.data.data[0].id;
                 username = resolveRes.data.data[0].name || playerInput;
             } else {
-                // If ID was given, get username for display
                 const userRes = await axios.get(`https://users.roblox.com/v1/users/${userId}`);
                 username = userRes.data.name;
             }
 
-            // Get player avatar (headshot)
+            // Get player avatar
             const avatarRes = await axios.get(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=150x150&format=Png`);
             const avatarUrl = avatarRes.data.data[0]?.imageUrl || "https://i.imgur.com/4y3n9jE.png";
 
@@ -73,14 +71,8 @@ module.exports = {
                 .setTimestamp();
 
             const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId('confirm_rank')
-                    .setLabel('Yes')
-                    .setStyle(ButtonStyle.Success),
-                new ButtonBuilder()
-                    .setCustomId('cancel_rank')
-                    .setLabel('No')
-                    .setStyle(ButtonStyle.Danger)
+                new ButtonBuilder().setCustomId('confirm_rank').setLabel('Yes').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId('cancel_rank').setLabel('No').setStyle(ButtonStyle.Danger)
             );
 
             const confirmMsg = await interaction.editReply({
@@ -88,7 +80,6 @@ module.exports = {
                 components: [row]
             });
 
-            // Button Collector
             const collector = confirmMsg.createMessageComponentCollector({
                 componentType: ComponentType.Button,
                 time: 30000
@@ -108,7 +99,6 @@ module.exports = {
                 if (i.customId === 'confirm_rank') {
                     await i.update({ content: "Ranking in progress...", embeds: [], components: [] });
 
-                    // Send request to backend
                     const response = await axios.post(proxyUrl, {
                         userId: String(userId),
                         roleName: roleNameInput,
@@ -131,7 +121,7 @@ module.exports = {
 
                         await interaction.editReply({ embeds: [successEmbed], components: [] });
 
-                        // === LOG TO CHANNEL ===
+                        // Log
                         const logChannel = client.channels.cache.get('989744339951427644');
                         if (logChannel) {
                             const logEmbed = new EmbedBuilder()
@@ -173,7 +163,7 @@ module.exports = {
 
         } catch (error) {
             console.error(error);
-            const errorMsg = error.response?.data?.errors?.[0]?.message || error.message;
+            const errorMsg = error.response?.data?.errors?.[0]?.message || error.message || "Failed to connect to ranking service.";
             const errorEmbed = new EmbedBuilder()
                 .setColor(0xED4245)
                 .setTitle('Ranking Failed')
