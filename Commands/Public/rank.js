@@ -56,7 +56,7 @@ module.exports = {
             const avatarRes = await axios.get(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=150x150&format=Png`);
             const avatarUrl = avatarRes.data.data[0]?.imageUrl || "https://i.imgur.com/4y3n9jE.png";
 
-            // Show confirmation embed
+            // Confirmation Embed
             const confirmEmbed = new EmbedBuilder()
                 .setColor(0xED4245)
                 .setTitle('Confirm Ranking')
@@ -75,10 +75,7 @@ module.exports = {
                 new ButtonBuilder().setCustomId('cancel_rank').setLabel('No').setStyle(ButtonStyle.Danger)
             );
 
-            const confirmMsg = await interaction.editReply({
-                embeds: [confirmEmbed],
-                components: [row]
-            });
+            const confirmMsg = await interaction.editReply({ embeds: [confirmEmbed], components: [row] });
 
             const collector = confirmMsg.createMessageComponentCollector({
                 componentType: ComponentType.Button,
@@ -121,7 +118,6 @@ module.exports = {
 
                         await interaction.editReply({ embeds: [successEmbed], components: [] });
 
-                        // Log
                         const logChannel = client.channels.cache.get('989744339951427644');
                         if (logChannel) {
                             const logEmbed = new EmbedBuilder()
@@ -144,10 +140,7 @@ module.exports = {
                                     .setURL(`https://www.roblox.com/users/${userId}/profile`)
                             );
 
-                            await logChannel.send({
-                                embeds: [logEmbed],
-                                components: [viewProfileButton]
-                            });
+                            await logChannel.send({ embeds: [logEmbed], components: [viewProfileButton] });
                         }
                     } else {
                         throw new Error(response.data.error || 'Unknown error');
@@ -163,7 +156,10 @@ module.exports = {
 
         } catch (error) {
             console.error(error);
-            const errorMsg = error.response?.data?.errors?.[0]?.message || error.message || "Failed to connect to ranking service.";
+            let errorMsg = error.message;
+            if (error.code === 'ECONNREFUSED') {
+                errorMsg = "An error has occured.";
+            }
             const errorEmbed = new EmbedBuilder()
                 .setColor(0xED4245)
                 .setTitle('Ranking Failed')
