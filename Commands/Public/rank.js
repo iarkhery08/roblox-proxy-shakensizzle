@@ -37,15 +37,19 @@ module.exports = {
             let username = playerInput;
 
             if (isNaN(playerInput)) {
-                const resolveRes = await axios.get(`https://users.roblox.com/v1/usernames/users`, {
-                    params: { usernames: playerInput }
+                // FIXED: Use POST request as required by Roblox
+                const resolveRes = await axios.post(`https://users.roblox.com/v1/usernames/users`, {
+                    usernames: [playerInput],
+                    excludeBannedUsers: false
                 });
-                if (resolveRes.data.data.length === 0) {
+
+                if (!resolveRes.data.data || resolveRes.data.data.length === 0) {
                     return interaction.editReply("Could not find that ROBLOX user.");
                 }
                 userId = resolveRes.data.data[0].id;
-                username = resolveRes.data.data[0].name;
+                username = resolveRes.data.data[0].name || playerInput;
             } else {
+                // If ID was given, get username for display
                 const userRes = await axios.get(`https://users.roblox.com/v1/users/${userId}`);
                 username = userRes.data.name;
             }
@@ -169,7 +173,7 @@ module.exports = {
 
         } catch (error) {
             console.error(error);
-            const errorMsg = error.response?.data?.error || error.message;
+            const errorMsg = error.response?.data?.errors?.[0]?.message || error.message;
             const errorEmbed = new EmbedBuilder()
                 .setColor(0xED4245)
                 .setTitle('Ranking Failed')
