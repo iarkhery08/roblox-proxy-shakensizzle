@@ -27,10 +27,9 @@ module.exports = {
         await interaction.deferReply();
 
         const playerInput = interaction.options.getString('player').trim();
-        const roleNameInput = interaction.options.getString('role').trim();
-
+        const roleNameInput = interaction.options.getString('rank').trim();
         const groupId = process.env.GROUP_ID || 'GROUP_ID';
-        const proxyUrl = "http://localhost:3000/api/rank"; 
+        const proxyUrl = "http://localhost:3000/api/rank";
 
         try {
             // Resolve Roblox User
@@ -47,7 +46,6 @@ module.exports = {
                 userId = resolveRes.data.data[0].id;
                 username = resolveRes.data.data[0].name;
             } else {
-                // If ID was given, get username for display
                 const userRes = await axios.get(`https://users.roblox.com/v1/users/${userId}`);
                 username = userRes.data.name;
             }
@@ -58,7 +56,7 @@ module.exports = {
 
             // Show confirmation embed
             const confirmEmbed = new EmbedBuilder()
-                .setColor(ED4245)
+                .setColor(0xED4245)
                 .setTitle('Confirm Ranking')
                 .setDescription(`Are you sure you want to rank this player?`)
                 .addFields(
@@ -89,7 +87,7 @@ module.exports = {
             // Button Collector
             const collector = confirmMsg.createMessageComponentCollector({
                 componentType: ComponentType.Button,
-                time: 30000 // 30 seconds to confirm
+                time: 30000
             });
 
             collector.on('collect', async i => {
@@ -117,7 +115,7 @@ module.exports = {
 
                     if (response.data.success) {
                         const successEmbed = new EmbedBuilder()
-                            .setColor(ED4245)
+                            .setColor(0xED4245)
                             .setTitle('Ranking Successful')
                             .addFields(
                                 { name: 'Player', value: `[${username}](https://www.roblox.com/users/${userId})`, inline: true },
@@ -126,14 +124,14 @@ module.exports = {
                             )
                             .setThumbnail(avatarUrl)
                             .setTimestamp();
-                      
+
                         await interaction.editReply({ embeds: [successEmbed], components: [] });
 
                         // === LOG TO CHANNEL ===
                         const logChannel = client.channels.cache.get('989744339951427644');
                         if (logChannel) {
                             const logEmbed = new EmbedBuilder()
-                                .setColor(ED4245)
+                                .setColor(0xED4245)
                                 .setTitle('Ranking Log')
                                 .addFields(
                                     { name: 'Player', value: `[${username}](https://www.roblox.com/users/${userId})`, inline: true },
@@ -145,19 +143,18 @@ module.exports = {
                                 .setThumbnail(avatarUrl)
                                 .setFooter({ text: `Group ID: ${groupId}` });
 
-                          const viewProfileButton = new ActionRowBuilder().addComponents(
+                            const viewProfileButton = new ActionRowBuilder().addComponents(
                                 new ButtonBuilder()
                                     .setLabel('View Profile')
                                     .setStyle(ButtonStyle.Link)
                                     .setURL(`https://www.roblox.com/users/${userId}/profile`)
                             );
 
-                            await logChannel.send({ 
-                              embeds: [logEmbed] ,
-                              components: [viewProfileButton]
+                            await logChannel.send({
+                                embeds: [logEmbed],
+                                components: [viewProfileButton]
                             });
                         }
-
                     } else {
                         throw new Error(response.data.error || 'Unknown error');
                     }
@@ -166,19 +163,17 @@ module.exports = {
 
             collector.on('end', async collected => {
                 if (collected.size === 0) {
-                    await confirmMsg.edit({ content: "⏰ Confirmation timed out.", embeds: [], components: [] });
+                    await confirmMsg.edit({ content: "Confirmation timed out.", embeds: [], components: [] });
                 }
             });
 
         } catch (error) {
             console.error(error);
             const errorMsg = error.response?.data?.error || error.message;
-
             const errorEmbed = new EmbedBuilder()
-                .setColor(ED4245)
+                .setColor(0xED4245)
                 .setTitle('Ranking Failed')
                 .setDescription(errorMsg);
-
             await interaction.editReply({ embeds: [errorEmbed], components: [] });
         }
     }
