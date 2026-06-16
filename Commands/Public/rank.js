@@ -69,7 +69,7 @@ module.exports = {
                     { name: 'Role Name', value: roleNameInput, inline: true }
                 )
                 .setThumbnail(avatarUrl)
-                .setFooter({ text: 'This action cannot be easily undone.' })
+                .setFooter({ text: 'Ranking System By: iArkhery' })
                 .setTimestamp();
 
             const row = new ActionRowBuilder().addComponents(
@@ -142,10 +142,10 @@ module.exports = {
                                     { name: 'User ID', value: userId.toString(), inline: true },
                                     { name: 'Role Name', value: roleNameInput, inline: true },
                                     { name: 'Ranked by', value: `${interaction.user.tag} (${interaction.user.id})`, inline: true },
-                                    { name: 'Time', value: `<t:${Math.floor(Date.now()/1000)}:F>`, inline: false }
                                 )
                                 .setThumbnail(avatarUrl)
-                                .setFooter({ text: `Group ID: ${groupId}` });
+                                .setFooter({ text: 'Ranking System By: iArkhery' })
+                                .setTimestamp();
 
                             const viewProfileButton = new ActionRowBuilder().addComponents(
                                 new ButtonBuilder()
