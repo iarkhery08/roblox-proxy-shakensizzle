@@ -1,121 +1,206 @@
+const { Client, Collection, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, GatewayIntentBits } = require('discord.js');
+require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
-const cors = require('cors');
-require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const DISCORD_TOKEN = process.env.DISCORD_TOKEN || 'DISCORD_TOKEN';
+const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY || 'YOUR_ROBLOX_CLOUD_API_KEY';
+const PROXY_SECRET = 'shakensizzlerankingservicesss2222025';
 
-app.use(cors());
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+    ]
+});
+
+const { loadCommands } = require('./Handlers/commandHandler');
+
 app.use(express.json());
 
 // ====================== HELPER FUNCTIONS ======================
 
-async function getCSRFToken() {
+async function getRoleIdByRank(groupId, targetRank, apiKey) {
     try {
-        await axios.post('https://auth.roblox.com/v2/login');
-        return null; // This will trigger the error with the token in headers
-    } catch (err) {
-        return err.response?.headers?.['x-csrf-token'];
+        let allRoles = [];
+        let pageToken = null;
+
+        do {
+            let url = `https://apis.roblox.com/cloud/v2/groups/${groupId}/roles?maxPageSize=100`;
+            if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
+
+            const response = await axios.get(url, { headers: { 'x-api-key': apiKey } });
+            const roles = response.data.groupRoles || response.data.roles || [];
+            allRoles = allRoles.concat(roles);
+            pageToken = response.data.nextPageToken || null;
+        } while (pageToken);
+
+        for (const role of allRoles) {
+            if (role.rank === Number(targetRank)) {
+                const realId = role.id || (role.path ? role.path.split('/').pop() : null);
+                return { success: true, roleId: realId, roleName: role.displayName || role.name };
+            }
+        }
+        return { success: false, error: `No role with rank ${targetRank} found.` };
+    } catch (error) {
+        console.error('Get roles failed:', error.response?.data || error.message);
+        return { success: false, error: 'Failed to fetch roles' };
     }
 }
 
-// Main ranking function
-async function rankUser(userId, roleName, groupId) {
+async function getMembershipId(groupId, userId, apiKey) {
     try {
-        // 1. Fetch all roles in the group
-        const rolesRes = await axios.get(`https://groups.roblox.com/v1/groups/${groupId}/roles`);
-        const roles = rolesRes.data.roles;
-
-        // 2. Find the role by exact name
-        const targetRole = roles.find(role => role.name === roleName);
-
-        if (!targetRole) {
-            return {
-                success: false,
-                error: `Rank "${roleName}" does not exist in the group. Please use the exact rank name.`
-            };
+        const filter = `user=='users/${userId}'`;
+        const url = `https://apis.roblox.com/cloud/v2/groups/${groupId}/memberships?maxPageSize=10&filter=${encodeURIComponent(filter)}`;
+        const response = await axios.get(url, { headers: { 'x-api-key': apiKey } });
+        const memberships = response.data.groupMemberships || [];
+        if (memberships.length === 0) {
+            return { success: false, error: 'User is not in the group' };
         }
-
-        const roleId = targetRole.id;
-
-        // 3. Get CSRF Token
-        const csrfToken = await getCSRFToken();
-
-        // 4. Change rank
-        await axios.patch(
-            `https://groups.roblox.com/v1/groups/${groupId}/users/${userId}`,
-            { roleId: roleId },
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': `.ROBLOSECURITY=${process.env.ROBLOX_COOKIE}`,
-                    'X-CSRF-TOKEN': csrfToken
-                }
-            }
-        );
-
-        return {
-            success: true,
-            message: `Successfully ranked user to ${roleName}`
-        };
-
+        const fullPath = memberships[0].path || '';
+        const membershipId = fullPath.split('/').pop();
+        const rolePath = memberships[0].role || '';
+        const currentRoleId = rolePath.split('/').pop();
+        return { success: true, membershipId, currentRoleId };
     } catch (error) {
-        console.error("Ranking Error Details:", error.response?.data || error.message);
+        console.error('Get membership failed:', error.response?.data || error.message);
+        return { success: false, error: 'Failed to get membership' };
+    }
+}
 
-        let errorMsg = error.response?.data?.errors?.[0]?.message || error.message || "Unknown error";
+// Main function supporting promote / demote
+async function rankUser(groupId, userId, roleInput, apiKey, action = null) {
+    if (!groupId || !userId) {
+        return { success: false, error: 'Missing parameters' };
+    }
 
-        // User-friendly messages
-        if (errorMsg.toLowerCase().includes("invalid role") || 
-            errorMsg.toLowerCase().includes("roleid") ||
-            errorMsg.toLowerCase().includes("not found")) {
-            errorMsg = `Rank "${roleName}" does not exist or you don't have permission to assign it.`;
-        } else if (errorMsg.includes("Unauthorized")) {
-            errorMsg = "Cookie is invalid or expired. Please update ROBLOX_COOKIE.";
+    let roleId;
+    let newRoleName;
+
+    if (action && (action.includes('promote') || action.includes('demote'))) {
+        // Get current membership
+        const memResult = await getMembershipId(groupId, userId, apiKey);
+        if (!memResult.success) return memResult;
+
+        // Get all roles
+        let allRoles = [];
+        let pageToken = null;
+        do {
+            let url = `https://apis.roblox.com/cloud/v2/groups/${groupId}/roles?maxPageSize=100`;
+            if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
+            const res = await axios.get(url, { headers: { 'x-api-key': apiKey } });
+            allRoles = allRoles.concat(res.data.groupRoles || res.data.roles || []);
+            pageToken = res.data.nextPageToken;
+        } while (pageToken);
+
+        const currentRole = allRoles.find(r => r.id === memResult.currentRoleId);
+        const currentRank = currentRole ? currentRole.rank : 0;
+
+        let targetRank = currentRank;
+        if (action.includes("promote")) targetRank = Math.min(255, currentRank + 1);
+        if (action.includes("demote")) targetRank = Math.max(0, currentRank - 1);
+
+        const roleResult = await getRoleIdByRank(groupId, targetRank, apiKey);
+        if (!roleResult.success) return roleResult;
+
+        roleId = roleResult.roleId;
+        newRoleName = roleResult.roleName || `Rank ${targetRank}`;
+    } 
+    else if (roleInput) {
+        // Normal rank by name or number
+        if (isNaN(roleInput)) {
+            const roleResult = await getRoleIdByName(groupId, roleInput, apiKey);
+            if (!roleResult.success) return roleResult;
+            roleId = roleResult.roleId;
+            newRoleName = roleInput;
+        } else {
+            const roleResult = await getRoleIdByRank(groupId, roleInput, apiKey);
+            if (!roleResult.success) return roleResult;
+            roleId = roleResult.roleId;
+            newRoleName = roleInput;
         }
+    }
 
-        return {
-            success: false,
-            error: errorMsg
-        };
+    // Perform PATCH
+    const memResult = await getMembershipId(groupId, userId, apiKey);
+    if (!memResult.success) return memResult;
+
+    try {
+        const url = `https://apis.roblox.com/cloud/v2/groups/${groupId}/memberships/${memResult.membershipId}`;
+        const body = { role: `groups/${groupId}/roles/${roleId}` };
+
+        await axios.patch(url, body, {
+            headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json' }
+        });
+
+        return { success: true, newRoleName };
+    } catch (error) {
+        console.error('PATCH failed:', error.response?.data || error.message);
+        return { success: false, error: error.response?.data?.message || 'Failed to update rank' };
     }
 }
 
 // ====================== ROUTES ======================
 
 app.post('/api/rank', async (req, res) => {
-    try {
-        const { userId, roleName, groupId } = req.body;
+    const authHeader = req.headers['authorization'];
+    if (authHeader !== PROXY_SECRET) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
 
-        if (!userId || !roleName || !groupId) {
-            return res.status(400).json({
-                success: false,
-                error: "Missing required fields: userId, roleName, groupId"
-            });
-        }
+    const { userId, roleName, roleId, action, groupId } = req.body;
 
-        // Authorization check
-        if (req.headers.authorization !== 'shakensizzlerankingservicesss2222025') {
-            return res.status(401).json({ success: false, error: "Unauthorized" });
-        }
+    console.log('\n=== NEW RANKING REQUEST ===');
+    console.log('Group:', groupId, 'User:', userId, 'Action:', action, 'Role:', roleName || roleId);
 
-        const result = await rankUser(userId, roleName, groupId);
-        res.json(result);
+    const result = await rankUser(groupId, userId, roleName || roleId, ROBLOX_API_KEY, action);
 
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({
-            success: false,
-            error: "Internal server error"
+    if (result.success) {
+        res.json({ 
+            success: true, 
+            newRoleName: result.newRoleName 
+        });
+    } else {
+        res.status(400).json({ 
+            success: false, 
+            error: result.error 
         });
     }
 });
 
-app.get('/', (req, res) => {
-    res.send('Roblox Ranking Proxy is running ✅');
+// Debug
+app.get('/api/roles/:groupId', async (req, res) => {
+    const result = await getRoleIdByRank(req.params.groupId, 0, ROBLOX_API_KEY);
+    res.json({ success: true, message: 'Check server logs' });
 });
 
-// Start server
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`✅ Ranking proxy running on port ${PORT}`);
+    console.log(`Server running on port ${PORT}`);
+});
+
+// ====================== DISCORD BOT ======================
+
+client.once("ready", () => {
+    console.log(`Logged in as ${client.user.tag}!`);
+});
+
+client.on('ready', () => {
+    client.user.setStatus('idle');
+    client.user.setActivity('commands', { type: 'LISTENING' });
+});
+
+client.on("interactionCreate", (interaction) => {
+    if (!interaction.isChatInputCommand()) return;
+    const command = client.commands.get(interaction.commandName);
+    if (!command) return interaction.reply({ content: "Command does not exist" });
+    command.execute(interaction, client);
+});
+
+client.commands = new Collection();
+
+client.login(DISCORD_TOKEN).then(() => {
+    loadCommands(client);
 });
