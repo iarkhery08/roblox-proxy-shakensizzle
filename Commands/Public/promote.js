@@ -105,7 +105,7 @@ module.exports = {
                 }
 
                 if (i.customId === 'confirm_rank') {
-                    await i.update({ content: "🔄 Promotion in progress...", embeds: [], components: [] });
+                    await i.update({ content: "Promotion in progress...", embeds: [], components: [] });
 
                     const response = await axios.post(proxyUrl, {
                         userId: String(userId),
@@ -124,7 +124,7 @@ module.exports = {
                             .addFields(
                                 { name: 'Player', value: `[${username}](https://www.roblox.com/users/${userId})`, inline: true },
                                 { name: 'User ID', value: userId.toString(), inline: true },
-                                { name: 'New Role', value: newRoleName, inline: true }
+                                { name: 'New Rank', value: newRoleName, inline: true }
                             )
                             .setThumbnail(avatarUrl)
                             .setTimestamp();
