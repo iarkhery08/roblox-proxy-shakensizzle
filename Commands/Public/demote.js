@@ -136,12 +136,12 @@ module.exports = {
                         if (logChannel) {
                             const logEmbed = new EmbedBuilder()
                                 .setColor(0xED4245)
-                                .setTitle('Demotion Log')
+                                .setTitle('Ranking Log')
                                 .addFields(
                                     { name: 'Player', value: `[${username}](https://www.roblox.com/users/${userId})`, inline: true },
                                     { name: 'User ID', value: userId.toString(), inline: true },
                                     { name: 'New Rank Name', value: newRoleName, inline: true },
-                                    { name: 'Demoted by', value: `${interaction.user.tag} (${interaction.user.id})`, inline: true },
+                                    { name: 'Ranked by', value: `${interaction.user.tag} (${interaction.user.id})`, inline: true },
                                 )
                                 .setThumbnail(avatarUrl)
                                 .setFooter({ text: 'Ranking System By: iArkhery' })
