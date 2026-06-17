@@ -64,7 +64,7 @@ module.exports = {
                 .addFields(
                     { name: 'Player', value: `[${username}](https://www.roblox.com/users/${userId})`, inline: true },
                     { name: 'User ID', value: userId.toString(), inline: true },
-                    { name: 'Rank Name', value: roleNameInput, inline: true }
+                    { name: 'New Rank Name', value: roleNameInput, inline: true }
                 )
                 .setThumbnail(avatarUrl)
                 .setFooter({ text: 'Ranking System By: iArkhery' })
@@ -128,7 +128,7 @@ module.exports = {
                                     .addFields(
                                         { name: 'Player', value: `[${username}](https://www.roblox.com/users/${userId})`, inline: true },
                                         { name: 'User ID', value: userId.toString(), inline: true },
-                                        { name: 'Rank Name', value: roleNameInput, inline: true },
+                                        { name: 'New Rank Name', value: roleNameInput, inline: true },
                                         { name: 'Ranked by', value: `${interaction.user.tag} (${interaction.user.id})`, inline: true },
                                     )
                                     .setThumbnail(avatarUrl)
