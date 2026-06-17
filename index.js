@@ -1,4 +1,7 @@
-const { Client, Collection, Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, GatewayIntentBits } = require('discord.js');
+✅ Here's the corrected full index.js with better promote/demote handling.
+The previous version had a bug in how it fetched the current membership/role.
+Full Updated index.js
+JavaScriptconst { Client, Collection, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, GatewayIntentBits } = require('discord.js');
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
@@ -22,12 +25,10 @@ app.use(express.json());
 
 // ====================== HELPER FUNCTIONS ======================
 
-// Get Role ID by Rank
 async function getRoleIdByRank(groupId, targetRank, apiKey) {
     try {
         let allRoles = [];
         let pageToken = null;
-        const target = Number(targetRank);
 
         do {
             let url = `https://apis.roblox.com/cloud/v2/groups/${groupId}/roles?maxPageSize=100`;
@@ -40,52 +41,18 @@ async function getRoleIdByRank(groupId, targetRank, apiKey) {
         } while (pageToken);
 
         for (const role of allRoles) {
-            if (role.rank === target) {
+            if (role.rank === Number(targetRank)) {
                 const realId = role.id || (role.path ? role.path.split('/').pop() : null);
-                return { success: true, roleId: realId };
+                return { success: true, roleId: realId, roleName: role.displayName || role.name };
             }
         }
-        return { success: false, error: `No role with rank ${target} found.` };
+        return { success: false, error: `No role with rank ${targetRank} found.` };
     } catch (error) {
         console.error('Get roles failed:', error.response?.data || error.message);
-        return { success: false, error: 'Failed to fetch roles list' };
-    }
-}
-
-// Get Role ID by Name
-async function getRoleIdByName(groupId, roleName, apiKey) {
-    try {
-        let allRoles = [];
-        let pageToken = null;
-
-        do {
-            let url = `https://apis.roblox.com/cloud/v2/groups/${groupId}/roles?maxPageSize=100`;
-            if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
-
-            const response = await axios.get(url, { headers: { 'x-api-key': apiKey } });
-            const roles = response.data.groupRoles || response.data.roles || [];
-            allRoles = allRoles.concat(roles);
-            pageToken = response.data.nextPageToken || null;
-        } while (pageToken);
-
-        const foundRole = allRoles.find(role => 
-            (role.displayName && role.displayName.toLowerCase() === roleName.toLowerCase()) ||
-            (role.name && role.name.toLowerCase() === roleName.toLowerCase())
-        );
-
-        if (foundRole) {
-            const realId = foundRole.id || (foundRole.path ? foundRole.path.split('/').pop() : null);
-            return { success: true, roleId: realId };
-        }
-
-        return { success: false, error: `Role "${roleName}" not found.` };
-    } catch (error) {
-        console.error('Get role by name failed:', error.response?.data || error.message);
         return { success: false, error: 'Failed to fetch roles' };
     }
 }
 
-// Get Membership ID
 async function getMembershipId(groupId, userId, apiKey) {
     try {
         const filter = `user=='users/${userId}'`;
@@ -95,28 +62,32 @@ async function getMembershipId(groupId, userId, apiKey) {
         if (memberships.length === 0) {
             return { success: false, error: 'User is not in the group' };
         }
-        const membershipId = memberships[0].path.split('/').pop();
-        return { success: true, membershipId };
+        const fullPath = memberships[0].path || '';
+        const membershipId = fullPath.split('/').pop();
+        const rolePath = memberships[0].role || '';
+        const currentRoleId = rolePath.split('/').pop();
+        return { success: true, membershipId, currentRoleId };
     } catch (error) {
         console.error('Get membership failed:', error.response?.data || error.message);
         return { success: false, error: 'Failed to get membership' };
     }
 }
 
-// Main Ranking Function (supports normal rank, promote, demote)
+// Main function supporting promote / demote
 async function rankUser(groupId, userId, roleInput, apiKey, action = null) {
     if (!groupId || !userId) {
         return { success: false, error: 'Missing parameters' };
     }
 
     let roleId;
-    let newRoleName = roleInput;
+    let newRoleName;
 
-    if (action === "promote" || action === "demote" || action === "preview_promote" || action === "preview_demote") {
+    if (action && (action.includes('promote') || action.includes('demote'))) {
+        // Get current membership
         const memResult = await getMembershipId(groupId, userId, apiKey);
         if (!memResult.success) return memResult;
 
-        // Fetch all roles
+        // Get all roles
         let allRoles = [];
         let pageToken = null;
         do {
@@ -127,13 +98,7 @@ async function rankUser(groupId, userId, roleInput, apiKey, action = null) {
             pageToken = res.data.nextPageToken;
         } while (pageToken);
 
-        // Find current role
-        const currentMembership = await axios.get(`https://apis.roblox.com/cloud/v2/groups/${groupId}/memberships?maxPageSize=10&filter=user=='users/${userId}'`, {
-            headers: { 'x-api-key': apiKey }
-        });
-        const currentRolePath = currentMembership.data.groupMemberships[0]?.role;
-        const currentRoleId = currentRolePath ? currentRolePath.split('/').pop() : null;
-        const currentRole = allRoles.find(r => r.id === currentRoleId);
+        const currentRole = allRoles.find(r => r.id === memResult.currentRoleId);
         const currentRank = currentRole ? currentRole.rank : 0;
 
         let targetRank = currentRank;
@@ -142,28 +107,26 @@ async function rankUser(groupId, userId, roleInput, apiKey, action = null) {
 
         const roleResult = await getRoleIdByRank(groupId, targetRank, apiKey);
         if (!roleResult.success) return roleResult;
-        roleId = roleResult.roleId;
 
-        // Find the actual role name
-        const targetRole = allRoles.find(r => r.rank === targetRank);
-        newRoleName = targetRole ? (targetRole.displayName || targetRole.name) : `Rank ${targetRank}`;
+        roleId = roleResult.roleId;
+        newRoleName = roleResult.roleName || `Rank ${targetRank}`;
     } 
     else if (roleInput) {
-        // Normal rank command
+        // Normal rank by name or number
         if (isNaN(roleInput)) {
             const roleResult = await getRoleIdByName(groupId, roleInput, apiKey);
             if (!roleResult.success) return roleResult;
             roleId = roleResult.roleId;
-        } else if (Number(roleInput) < 1000000) {
+            newRoleName = roleInput;
+        } else {
             const roleResult = await getRoleIdByRank(groupId, roleInput, apiKey);
             if (!roleResult.success) return roleResult;
             roleId = roleResult.roleId;
-        } else {
-            roleId = roleInput;
+            newRoleName = roleInput;
         }
     }
 
-    // Perform the actual rank change
+    // Perform PATCH
     const memResult = await getMembershipId(groupId, userId, apiKey);
     if (!memResult.success) return memResult;
 
@@ -175,10 +138,7 @@ async function rankUser(groupId, userId, roleInput, apiKey, action = null) {
             headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json' }
         });
 
-        return { 
-            success: true, 
-            newRoleName: newRoleName 
-        };
+        return { success: true, newRoleName };
     } catch (error) {
         console.error('PATCH failed:', error.response?.data || error.message);
         return { success: false, error: error.response?.data?.message || 'Failed to update rank' };
@@ -196,7 +156,7 @@ app.post('/api/rank', async (req, res) => {
     const { userId, roleName, roleId, action, groupId } = req.body;
 
     console.log('\n=== NEW RANKING REQUEST ===');
-    console.log('Group:', groupId, 'User:', userId, 'Action:', action || 'set', 'Role:', roleName || roleId);
+    console.log('Group:', groupId, 'User:', userId, 'Action:', action, 'Role:', roleName || roleId);
 
     const result = await rankUser(groupId, userId, roleName || roleId, ROBLOX_API_KEY, action);
 
@@ -213,10 +173,10 @@ app.post('/api/rank', async (req, res) => {
     }
 });
 
-// Debug routes
+// Debug
 app.get('/api/roles/:groupId', async (req, res) => {
     const result = await getRoleIdByRank(req.params.groupId, 0, ROBLOX_API_KEY);
-    res.json({ success: true, message: 'Check console for roles' });
+    res.json({ success: true, message: 'Check server logs' });
 });
 
 const PORT = process.env.PORT || 3000;
@@ -238,9 +198,7 @@ client.on('ready', () => {
 client.on("interactionCreate", (interaction) => {
     if (!interaction.isChatInputCommand()) return;
     const command = client.commands.get(interaction.commandName);
-    if (!command) {
-        return interaction.reply({ content: "command does not exist" });
-    }
+    if (!command) return interaction.reply({ content: "Command does not exist" });
     command.execute(interaction, client);
 });
 
