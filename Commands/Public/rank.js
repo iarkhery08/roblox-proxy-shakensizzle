@@ -54,7 +54,7 @@ module.exports = {
 
             // Get player avatar
             const avatarRes = await axios.get(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=150x150&format=Png`);
-            const avatarUrl = avatarRes.data.data[0]?.imageUrl || "https://i.imgur.com/4y3n9jE.png";
+            const avatarUrl = avatarRes.data.data[0]?.imageUrl || "https://imgur.com/a/MIb5niW";
 
             // Confirmation Embed
             const confirmEmbed = new EmbedBuilder()
