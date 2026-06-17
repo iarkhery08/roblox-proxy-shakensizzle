@@ -1,7 +1,4 @@
-✅ Here's the corrected full index.js with better promote/demote handling.
-The previous version had a bug in how it fetched the current membership/role.
-Full Updated index.js
-JavaScriptconst { Client, Collection, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, GatewayIntentBits } = require('discord.js');
+const { Client, Collection, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, GatewayIntentBits } = require('discord.js');
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
