@@ -28,7 +28,7 @@ module.exports = {
 
         const playerInput = interaction.options.getString('player').trim();
         const roleNameInput = interaction.options.getString('rank').trim();
-        
+       
         const proxyUrl = process.env.PROXY_URL || "http://localhost:3000/api/rank";
         const groupId = process.env.GROUP_ID || 'GROUP_ID';
 
@@ -96,67 +96,81 @@ module.exports = {
                 if (i.customId === 'confirm_rank') {
                     await i.update({ content: "Ranking in progress...", embeds: [], components: [] });
 
-                    const response = await axios.post(proxyUrl, {
-                        userId: String(userId),
-                        roleName: roleNameInput,
-                        groupId: groupId
-                    }, {
-                        headers: { 'Authorization': 'shakensizzlerankingservicesss2222025' }
-                    });
+                    try {
+                        const response = await axios.post(proxyUrl, {
+                            userId: String(userId),
+                            roleName: roleNameInput,
+                            groupId: groupId
+                        }, {
+                            headers: { 'Authorization': 'shakensizzlerankingservicesss2222025' }
+                        });
 
-                    if (response.data.success) {
-                        const successEmbed = new EmbedBuilder()
-                            .setColor(0xED4245)
-                            .setTitle('Ranking Successful')
-                            .addFields(
-                                { name: 'Player', value: `[${username}](https://www.roblox.com/users/${userId})`, inline: true },
-                                { name: 'User ID', value: userId.toString(), inline: true },
-                                { name: 'Rank', value: roleNameInput, inline: true }
-                            )
-                            .setThumbnail(avatarUrl)
-                            .setTimestamp();
-
-                        await interaction.editReply({ embeds: [successEmbed], components: [] });
-
-                        const logChannel = client.channels.cache.get('989744339951427644');
-                        if (logChannel) {
-                            const logEmbed = new EmbedBuilder()
+                        if (response.data.success) {
+                            const successEmbed = new EmbedBuilder()
                                 .setColor(0xED4245)
-                                .setTitle('Ranking Log')
+                                .setTitle('Ranking Successful')
                                 .addFields(
                                     { name: 'Player', value: `[${username}](https://www.roblox.com/users/${userId})`, inline: true },
                                     { name: 'User ID', value: userId.toString(), inline: true },
-                                    { name: 'Rank Name', value: roleNameInput, inline: true },
-                                    { name: 'Ranked by', value: `${interaction.user.tag} (${interaction.user.id})`, inline: true },
+                                    { name: 'Rank', value: roleNameInput, inline: true }
                                 )
                                 .setThumbnail(avatarUrl)
-                                .setFooter({ text: 'Ranking System By: iArkhery' })
                                 .setTimestamp();
 
-                            const viewProfileButton = new ActionRowBuilder().addComponents(
-                                new ButtonBuilder()
-                                    .setLabel('View Profile')
-                                    .setStyle(ButtonStyle.Link)
-                                    .setURL(`https://www.roblox.com/users/${userId}/profile`)
-                            );
+                            await interaction.editReply({ embeds: [successEmbed], components: [] });
 
-                            await logChannel.send({ embeds: [logEmbed], components: [viewProfileButton] });
+                            // Log
+                            const logChannel = client.channels.cache.get('989744339951427644');
+                            if (logChannel) {
+                                const logEmbed = new EmbedBuilder()
+                                    .setColor(0xED4245)
+                                    .setTitle('Ranking Log')
+                                    .addFields(
+                                        { name: 'Player', value: `[${username}](https://www.roblox.com/users/${userId})`, inline: true },
+                                        { name: 'User ID', value: userId.toString(), inline: true },
+                                        { name: 'Rank Name', value: roleNameInput, inline: true },
+                                        { name: 'Ranked by', value: `${interaction.user.tag} (${interaction.user.id})`, inline: true },
+                                    )
+                                    .setThumbnail(avatarUrl)
+                                    .setFooter({ text: 'Ranking System By: iArkhery' })
+                                    .setTimestamp();
+
+                                const viewProfileButton = new ActionRowBuilder().addComponents(
+                                    new ButtonBuilder()
+                                        .setLabel('View Profile')
+                                        .setStyle(ButtonStyle.Link)
+                                        .setURL(`https://www.roblox.com/users/${userId}/profile`)
+                                );
+
+                                await logChannel.send({ embeds: [logEmbed], components: [viewProfileButton] });
+                            }
+                        } else {
+                            throw new Error(response.data.error || 'Unknown error');
                         }
-                    } else {
-                        throw new Error(response.data.error || 'Unknown error');
+                    } catch (rankError) {
+                        console.error(rankError);
+                        let msg = rankError.response?.data?.error || rankError.message || "Failed to rank player.";
+                        await interaction.editReply({
+                            content: null,
+                            embeds: [new EmbedBuilder()
+                                .setColor(0xED4245)
+                                .setTitle('Ranking Failed')
+                                .setDescription(msg)],
+                            components: []
+                        });
                     }
                 }
             });
 
             collector.on('end', async collected => {
                 if (collected.size === 0) {
-                    await confirmMsg.edit({ content: "Confirmation timed out.", embeds: [], components: [] });
+                    await confirmMsg.edit({ content: "Confirmation timed out.", embeds: [], components: [] }).catch(() => {});
                 }
             });
 
         } catch (error) {
             console.error(error);
-            let errorMsg = error.message;
+            let errorMsg = error.response?.data?.errors?.[0]?.message || error.message || "An unexpected error occurred.";
             if (error.code === 'ECONNREFUSED') {
                 errorMsg = "An error has occured.";
             }
@@ -164,7 +178,7 @@ module.exports = {
                 .setColor(0xED4245)
                 .setTitle('Ranking Failed')
                 .setDescription(errorMsg);
-            await interaction.editReply({ embeds: [errorEmbed], components: [] });
+            await interaction.editReply({ embeds: [errorEmbed], components: [] }).catch(() => {});
         }
     }
 };
