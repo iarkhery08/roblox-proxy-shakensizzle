@@ -39,7 +39,7 @@ module.exports = {
                     usernames: [playerInput],
                     excludeBannedUsers: false
                 });
-                if (!resolveRes.data.data?.length) return interaction.editReply("❌ Could not find that ROBLOX user.");
+                if (!resolveRes.data.data?.length) return interaction.editReply("Could not find that ROBLOX user.");
                 userId = resolveRes.data.data[0].id;
                 username = resolveRes.data.data[0].name || playerInput;
             } else {
