@@ -28,7 +28,7 @@ module.exports = {
 
         const playerInput = interaction.options.getString('player').trim();
         const roleNameInput = interaction.options.getString('rank').trim();
-       
+
         const proxyUrl = process.env.PROXY_URL || "http://localhost:3000/api/rank";
         const groupId = process.env.GROUP_ID || 'GROUP_ID';
 
@@ -42,9 +42,11 @@ module.exports = {
                     usernames: [playerInput],
                     excludeBannedUsers: false
                 });
-                if (!resolveRes.data.data || resolveRes.data.data.length === 0) {
+
+                if (!resolveRes.data.data?.length) {
                     return interaction.editReply("Could not find that ROBLOX user.");
                 }
+
                 userId = resolveRes.data.data[0].id;
                 username = resolveRes.data.data[0].name || playerInput;
             } else {
@@ -54,7 +56,7 @@ module.exports = {
 
             // Get player avatar
             const avatarRes = await axios.get(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=150x150&format=Png`);
-            const avatarUrl = avatarRes.data.data[0]?.imageUrl || "https://imgur.com/a/MIb5niW";
+            const avatarUrl = avatarRes.data.data?.[0]?.imageUrl || "https://imgur.com/a/MIb5niW";
 
             // Confirmation Embed
             const confirmEmbed = new EmbedBuilder()
@@ -142,43 +144,77 @@ module.exports = {
                                         .setURL(`https://www.roblox.com/users/${userId}/profile`)
                                 );
 
-                                await logChannel.send({ embeds: [logEmbed], components: [viewProfileButton] });
+                                await logChannel.send({ embeds: [logEmbed], components: [viewProfileButton] }).catch(() => {});
                             }
                         } else {
-                            throw new Error(response.data.error || 'Unknown error');
+                            // Better error message from proxy
+                            const errorMsg = response.data.error || response.data.message || 'Failed to rank player (unknown reason).';
+                            throw new Error(errorMsg);
                         }
                     } catch (rankError) {
-                        console.error(rankError);
-                        let msg = rankError.response?.data?.error || rankError.message || "Failed to rank player.";
+                        console.error('Ranking Error:', rankError);
+
+                        let errorMessage = "Failed to rank player.";
+
+                        if (rankError.response?.data) {
+                            const data = rankError.response.data;
+                            errorMessage = data.error || data.message || data.errors?.[0]?.message || JSON.stringify(data);
+                        } else if (rankError.message) {
+                            errorMessage = rankError.message;
+                        }
+
+                        // Specific message for non-existent rank
+                        if (errorMessage.toLowerCase().includes('rank') || 
+                            errorMessage.toLowerCase().includes('role') || 
+                            errorMessage.toLowerCase().includes('not found')) {
+                            errorMessage = `Rank **${roleNameInput}** does not exist in the group. Please use an exact existing rank name.`;
+                        }
+
+                        const errorEmbed = new EmbedBuilder()
+                            .setColor(0xED4245)
+                            .setTitle('Ranking Failed')
+                            .setDescription(errorMessage);
+
                         await interaction.editReply({
                             content: null,
-                            embeds: [new EmbedBuilder()
-                                .setColor(0xED4245)
-                                .setTitle('Ranking Failed')
-                                .setDescription(msg)],
+                            embeds: [errorEmbed],
                             components: []
-                        });
+                        }).catch(() => {});
                     }
                 }
             });
 
             collector.on('end', async collected => {
                 if (collected.size === 0) {
-                    await confirmMsg.edit({ content: "Confirmation timed out.", embeds: [], components: [] }).catch(() => {});
+                    await confirmMsg.edit({ 
+                        content: "Confirmation timed out.", 
+                        embeds: [], 
+                        components: [] 
+                    }).catch(() => {});
                 }
             });
 
         } catch (error) {
-            console.error(error);
-            let errorMsg = error.response?.data?.errors?.[0]?.message || error.message || "An unexpected error occurred.";
-            if (error.code === 'ECONNREFUSED') {
-                errorMsg = "An error has occured.";
+            console.error('Command Error:', error);
+
+            let errorMsg = "An unexpected error occurred.";
+            
+            if (error.response?.data) {
+                const data = error.response.data;
+                errorMsg = data.error || data.message || data.errors?.[0]?.message || errorMsg;
+            } else if (error.message) {
+                errorMsg = error.message;
             }
+
             const errorEmbed = new EmbedBuilder()
                 .setColor(0xED4245)
                 .setTitle('Ranking Failed')
                 .setDescription(errorMsg);
-            await interaction.editReply({ embeds: [errorEmbed], components: [] }).catch(() => {});
+
+            await interaction.editReply({ 
+                embeds: [errorEmbed], 
+                components: [] 
+            }).catch(() => {});
         }
     }
 };
