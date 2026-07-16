@@ -3,7 +3,7 @@ const axios = require('axios');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('currentrank')
+        .setName('checkcurrentrank')
         .setDescription('Check a ROBLOX player\'s current role in the group')
         .addStringOption(option =>
             option.setName('player')
