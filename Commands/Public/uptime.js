@@ -23,6 +23,7 @@ module.exports = {
 
         await interaction.reply({ embeds: [embed] });
     }
+};
 
 /* const {SlashCommandBuilder, CommandInteraction, PermissionFlagBits} = require("discord.js")
 
